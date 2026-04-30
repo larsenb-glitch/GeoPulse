@@ -393,3 +393,179 @@
   font-style: italic;
   padding: 12px 0;
 }
+
+/* === EXEC SUMMARY === */
+.execSummary {
+  background: linear-gradient(135deg, var(--teal-800), var(--teal-900, #04342C));
+  border: 1px solid var(--teal-600);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.execLabel {
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--teal-300);
+  margin-bottom: 8px;
+}
+
+.execText {
+  font-size: 14px;
+  line-height: 1.6;
+  color: white;
+}
+
+/* === REVENUE IMPACT === */
+.revenuePanel {
+  background: var(--bg-card);
+  border: 1px solid #EF9F27;
+  border-left-width: 4px;
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.revenueHeader { margin-bottom: 8px; }
+
+.revenueLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #FAC775;
+  margin-bottom: 4px;
+}
+
+.revenueAmount {
+  font-family: 'Syne', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.revenueAmount span {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.revenueExplanation {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+/* === KEY QUOTE === */
+.keyQuote {
+  background: rgba(239, 159, 39, 0.08);
+  border-left: 2px solid #EF9F27;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #FAC775;
+  font-style: italic;
+  border-radius: 0 6px 6px 0;
+}
+
+.keyQuoteLabel {
+  font-style: normal;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* === COPYABLE EXPORT FIELDS === */
+.exportPanel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+}
+
+.exportIntro {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+}
+
+.exportGroup {
+  margin-bottom: 1.25rem;
+}
+
+.exportGroup:last-child { margin-bottom: 0; }
+
+.exportGroupLabel {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--teal-300);
+  margin-bottom: 10px;
+}
+
+.copyField {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+
+.copyField:last-child { margin-bottom: 0; }
+
+.copyFieldHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.copyFieldLabel {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.copyBtn {
+  background: rgba(29, 158, 117, 0.15);
+  color: var(--teal-300);
+  border: 1px solid rgba(29, 158, 117, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.copyBtn:hover { background: rgba(29, 158, 117, 0.25); }
+
+.copyFieldValue {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.copyFieldValueMulti {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
