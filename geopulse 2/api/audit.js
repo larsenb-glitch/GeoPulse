@@ -28,7 +28,6 @@ async function getPlacesData(name, city, state, industry, googleApiKey) {
     );
     const geocodeData = await geocodeResp.json();
     if (!geocodeData.results?.[0]) return { business: null, competitors: [] };
-
     const { lat, lng } = geocodeData.results[0].geometry.location;
 
     const bizResults = await searchPlace(name, city, state, lat, lng, googleApiKey);
@@ -60,8 +59,8 @@ async function getPlacesData(name, city, state, industry, googleApiKey) {
   }
 }
 
-// ============ AI QUERIES ============
-async function queryClaudeWithSearch(prompt, anthropicKey) {
+// ============ AI QUERIES (no web search to save tokens) ============
+async function queryClaudeNoSearch(prompt, anthropicKey) {
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -72,23 +71,17 @@ async function queryClaudeWithSearch(prompt, anthropicKey) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 400,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+        max_tokens: 350,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
     const rawBody = await resp.text();
     let data;
-    try {
-      data = JSON.parse(rawBody);
-    } catch (e) {
-      return { text: '', error: 'Non-JSON response: ' + rawBody.slice(0, 100) };
+    try { data = JSON.parse(rawBody); } catch (e) {
+      return { text: '', error: 'Non-JSON: ' + rawBody.slice(0, 100) };
     }
     if (data.error) return { text: '', error: data.error.message };
-    const text = (data.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n');
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
     return { text, error: null };
   } catch (err) {
     return { text: '', error: err.message };
@@ -99,14 +92,12 @@ function checkMention(text, businessName) {
   if (!text) return { mentioned: false, position: -1 };
   const lower = text.toLowerCase();
   const nameLower = businessName.toLowerCase();
-  // Try full name first, then first word
   let idx = lower.indexOf(nameLower);
   if (idx === -1) {
     const firstWord = nameLower.split(' ')[0];
     if (firstWord.length > 3) idx = lower.indexOf(firstWord);
   }
   if (idx === -1) return { mentioned: false, position: -1 };
-  // Estimate "position" by where in the response it appears (1 = top, higher = lower)
   const pct = idx / text.length;
   const position = pct < 0.2 ? 1 : pct < 0.4 ? 2 : pct < 0.6 ? 3 : pct < 0.8 ? 4 : 5;
   return { mentioned: true, position };
@@ -131,27 +122,28 @@ function findCompetitorMentions(text, competitorList) {
 
 async function runAIQueries(name, city, state, industry, competitorList, anthropicKey) {
   const queries = [
-    `What are the best ${industry} in ${city}, ${state}? List top options.`,
-    `Recommend a highly-rated ${industry} in ${city}, ${state}.`,
-    `Is ${name} a good ${industry} in ${city}? Compare to alternatives.`,
+    `Based on what you know, what are the best ${industry} options in ${city}, ${state}? List your top 3-5 recommendations briefly.`,
+    `If a friend asked you to recommend a highly-rated ${industry} in ${city}, ${state}, who would you suggest and why?`,
+    `Is ${name} a good ${industry} in ${city}, ${state}? How does it compare to other options in the area?`,
   ];
 
-  // Run all 3 in parallel - fits within edge function timeout
-  const results = await Promise.all(
-    queries.map(async (q) => {
-      const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
-      const mention = checkMention(text, name);
-      const competitorsMentioned = findCompetitorMentions(text, competitorList);
-      return {
-        query: q,
-        response: text,
-        mentioned: mention.mentioned,
-        position: mention.position,
-        competitorsMentioned: competitorsMentioned.map(c => c.name),
-        error,
-      };
-    })
-  );
+  // Sequential with 1.5s delays - keeps us under rate limits comfortably
+  const results = [];
+  for (let i = 0; i < queries.length; i++) {
+    const q = queries[i];
+    const { text, error } = await queryClaudeNoSearch(q, anthropicKey);
+    const mention = checkMention(text, name);
+    const competitorsMentioned = findCompetitorMentions(text, competitorList);
+    results.push({
+      query: q,
+      response: text,
+      mentioned: mention.mentioned,
+      position: mention.position,
+      competitorsMentioned: competitorsMentioned.map(c => c.name),
+      error,
+    });
+    if (i < queries.length - 1) await new Promise(r => setTimeout(r, 1500));
+  }
 
   return results;
 }
@@ -179,15 +171,15 @@ export default async function handler(req) {
     ? await getPlacesData(name, city, state, industry, googleApiKey)
     : { business: null, competitors: [] };
 
-  // Step 2: Run real AI queries
+  // Step 2: Run AI queries
   const aiQueries = await runAIQueries(name, city, state, industry, competitors, anthropicKey);
 
-  // Step 3: Calculate REAL metrics from actual AI responses
+  // Step 3: Compute REAL metrics
   const totalQueries = aiQueries.length;
   const mentionsCount = aiQueries.filter(q => q.mentioned).length;
   const visibilityScore = Math.round((mentionsCount / totalQueries) * 100);
 
-  // Aggregate competitor mention counts from real query results
+  // Build competitor mention rankings from actual responses
   const competitorMentionCounts = {};
   aiQueries.forEach(q => {
     q.competitorsMentioned.forEach(name => {
@@ -200,57 +192,41 @@ export default async function handler(req) {
     .slice(0, 6)
     .map(([name, count]) => ({ name, mentions: count }));
 
-  // Step 4: Send everything to Claude for analysis + playbook
-  const businessContext = business
-    ? `REAL Google data for ${name}:
-- Rating: ${business.rating ?? 'unknown'} stars
-- Review count: ${business.reviews}
-- Website: ${business.website || website || 'none found'}`
-    : `Business: ${name} (no Google data found)`;
-
-  const queryResultsContext = aiQueries.map((q, i) => {
-    const status = q.mentioned ? `✅ MENTIONED (position ${q.position})` : '❌ NOT MENTIONED';
-    const compsList = q.competitorsMentioned.length > 0
-      ? `Competitors mentioned: ${q.competitorsMentioned.join(', ')}`
-      : 'No tracked competitors mentioned';
-    return `Query ${i + 1}: "${q.query}"
-Result: ${status}
-${compsList}`;
+  // Step 4: Truncate query responses to save tokens for analysis
+  const truncatedResponses = aiQueries.map((q, i) => {
+    const truncated = q.response.length > 400 ? q.response.slice(0, 400) + '...' : q.response;
+    const status = q.mentioned ? `MENTIONED (pos ${q.position})` : 'NOT MENTIONED';
+    return `Q${i+1}: "${q.query.slice(0, 80)}..."\nResult: ${status}\nResponse excerpt: ${truncated}`;
   }).join('\n\n');
 
+  const businessContext = business
+    ? `Real Google data: ${business.rating ?? '?'} stars, ${business.reviews} reviews, website: ${business.website || website || 'none'}`
+    : `No Google data found`;
+
   const competitorContext = competitors.length > 0
-    ? competitors.map(c => `- ${c.name}: ${c.reviews} reviews, ${c.rating ?? 'no'} stars`).join('\n')
+    ? competitors.slice(0, 5).map(c => `${c.name} (${c.reviews} reviews, ${c.rating ?? '?'}★)`).join('; ')
     : 'No competitor data';
 
-  const analysisPrompt = `You are a GEO (Generative Engine Optimization) analyst. I just ran 3 real AI queries to test how this business appears in AI-generated search results. Generate the analysis based on the ACTUAL results below.
+  const analysisPrompt = `Generate a GEO audit analysis. Return ONLY raw JSON, no markdown.
 
-Business: ${name}
-Location: ${city}, ${state}
-Industry: ${industry}
-
+Business: ${name} | ${city}, ${state} | ${industry}
 ${businessContext}
+Competitors: ${competitorContext}
 
-REAL COMPETITORS:
-${competitorContext}
+I ran 3 real AI queries. Visibility result: mentioned in ${mentionsCount}/${totalQueries} queries (${visibilityScore}%)
 
-REAL AI QUERY RESULTS (this is what AI actually said):
-${queryResultsContext}
+${truncatedResponses}
 
-ACTUAL VISIBILITY: ${name} appeared in ${mentionsCount} out of ${totalQueries} queries (${visibilityScore}%)
+Return this JSON exactly:
+{"overallScore":55,"accuracy":50,"sentiment":65,"insights":[{"type":"positive|warning|negative","text":"insight that references actual query results, ~20 words"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"reportInsights":[{"type":"positive|warning|negative","text":"longer polished insight for printed report, 25-35 words, references real numbers"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"keyQuotes":["damaging or revealing 8-15 word excerpt from query 1 response","excerpt from query 2","excerpt from query 3"],"sources":[{"name":"Google Business","pct":35},{"name":"Yelp","pct":25},{"name":"Source3","pct":20},{"name":"Source4","pct":12},{"name":"Source5","pct":8}],"playbook":{"quickWins":["specific action","specific action","specific action"],"strategic":["strategic action","strategic action"],"easyExtras":["easy action","easy action"],"deprioritize":["low-value action","low-value action"]},"revenueImpact":{"estimate":"$2,400-4,800","explanation":"~25 words explaining how missing AI visibility costs them this monthly based on industry benchmarks"},"outreachSubject":"compelling 6-10 word email subject line that would make this owner open it","executiveSummary":"40-60 word summary of findings written for the business owner"}
 
-Now generate a JSON analysis. Return ONLY raw JSON — no markdown, no backticks:
-
-{"overallScore":55,"accuracy":50,"sentiment":65,"insights":[{"type":"positive|warning|negative","text":"insight based on real query results"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"sources":[{"name":"Google Business","pct":35},{"name":"Yelp","pct":25},{"name":"Source3","pct":20},{"name":"Source4","pct":12},{"name":"Source5","pct":8}],"playbook":{"quickWins":["specific action","specific action","specific action"],"strategic":["strategic action","strategic action"],"easyExtras":["easy action","easy action"],"deprioritize":["low-value action","low-value action"]}}
-
-CRITICAL RULES:
-- Insights must reference the REAL query results above (e.g. "appeared in only X of 3 queries", "competitor Y dominated 4 of the queries")
-- overallScore should reflect actual visibility (${visibilityScore}%) blended with their Google reputation
-- Use industry-appropriate sources (StyleSeat/Vagaro for salons, Healthgrades for medical, Avvo for legal, etc.)
-- Make playbook actions specific to fixing what the real queries revealed
-- Do NOT include "visibility" or "competitors" in the JSON — those are calculated from real data already`;
+CRITICAL:
+- All scores must reflect actual ${visibilityScore}% visibility result
+- Use industry-appropriate sources (StyleSeat/Vagaro for salons, Healthgrades for medical, Avvo for legal, TripAdvisor for restaurants)
+- All insights/playbook items must be specific to ${name}, ${city}, ${industry}`;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -259,17 +235,15 @@ CRITICAL RULES:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: 1800,
         messages: [{ role: 'user', content: analysisPrompt }],
       }),
     });
 
-    const rawBody = await resp.text();
+    const rawBody = await response.text();
     let data;
-    try {
-      data = JSON.parse(rawBody);
-    } catch (e) {
-      return new Response(JSON.stringify({ error: 'API returned non-JSON: ' + rawBody.slice(0, 200) }), {
+    try { data = JSON.parse(rawBody); } catch (e) {
+      return new Response(JSON.stringify({ error: 'API non-JSON: ' + rawBody.slice(0, 200) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
@@ -287,7 +261,6 @@ CRITICAL RULES:
     const jsonStr = start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw;
     const analysis = JSON.parse(jsonStr);
 
-    // Build the final audit object combining real data + AI analysis
     const audit = {
       ...analysis,
       visibility: visibilityScore,
