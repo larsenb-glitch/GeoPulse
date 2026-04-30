@@ -71,13 +71,19 @@ async function queryClaudeWithSearch(prompt, anthropicKey) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 500,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
         messages: [{ role: 'user', content: prompt }],
       }),
     });
-    const data = await resp.json();
+    const rawBody = await resp.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (e) {
+      return { text: '', error: 'Non-JSON response: ' + rawBody.slice(0, 100) };
+    }
     if (data.error) return { text: '', error: data.error.message };
     const text = (data.content || [])
       .filter(b => b.type === 'text')
@@ -262,13 +268,22 @@ CRITICAL RULES:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         messages: [{ role: 'user', content: analysisPrompt }],
       }),
     });
 
-    const data = await resp.json();
+    const rawBody = await resp.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'API returned non-JSON: ' + rawBody.slice(0, 200) }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
     if (data.error) {
       return new Response(JSON.stringify({ error: data.error.message }), {
         status: 500,
