@@ -72,8 +72,8 @@ async function queryClaudeWithSearch(prompt, anthropicKey) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 500,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+        max_tokens: 400,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -131,37 +131,27 @@ function findCompetitorMentions(text, competitorList) {
 
 async function runAIQueries(name, city, state, industry, competitorList, anthropicKey) {
   const queries = [
-    `What are the best ${industry} businesses in ${city}, ${state}? List the top 5 with brief descriptions.`,
-    `Recommend a good ${industry} near ${city}, ${state}. What are my best options?`,
-    `Where should I go for ${industry} services in ${city}? I want highly-rated options.`,
-    `What's the most popular ${industry} in ${city}, ${state}?`,
-    `I just moved to ${city}, ${state}. Where do locals go for ${industry}?`,
-    `Is ${name} a good ${industry} in ${city}? How does it compare to competitors?`,
+    `What are the best ${industry} in ${city}, ${state}? List top options.`,
+    `Recommend a highly-rated ${industry} in ${city}, ${state}.`,
+    `Is ${name} a good ${industry} in ${city}? Compare to alternatives.`,
   ];
 
-  // Run in batches of 2 to avoid rate limits
-  const results = [];
-  for (let i = 0; i < queries.length; i += 2) {
-    const batch = queries.slice(i, i + 2);
-    const batchResults = await Promise.all(
-      batch.map(async (q) => {
-        const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
-        const mention = checkMention(text, name);
-        const competitorsMentioned = findCompetitorMentions(text, competitorList);
-        return {
-          query: q,
-          response: text,
-          mentioned: mention.mentioned,
-          position: mention.position,
-          competitorsMentioned: competitorsMentioned.map(c => c.name),
-          error,
-        };
-      })
-    );
-    results.push(...batchResults);
-    // Small delay between batches
-    if (i + 2 < queries.length) await new Promise(r => setTimeout(r, 1000));
-  }
+  // Run all 3 in parallel - fits within edge function timeout
+  const results = await Promise.all(
+    queries.map(async (q) => {
+      const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
+      const mention = checkMention(text, name);
+      const competitorsMentioned = findCompetitorMentions(text, competitorList);
+      return {
+        query: q,
+        response: text,
+        mentioned: mention.mentioned,
+        position: mention.position,
+        competitorsMentioned: competitorsMentioned.map(c => c.name),
+        error,
+      };
+    })
+  );
 
   return results;
 }
@@ -232,7 +222,7 @@ ${compsList}`;
     ? competitors.map(c => `- ${c.name}: ${c.reviews} reviews, ${c.rating ?? 'no'} stars`).join('\n')
     : 'No competitor data';
 
-  const analysisPrompt = `You are a GEO (Generative Engine Optimization) analyst. I just ran 6 real AI queries to test how this business appears in AI-generated search results. Generate the analysis based on the ACTUAL results below.
+  const analysisPrompt = `You are a GEO (Generative Engine Optimization) analyst. I just ran 3 real AI queries to test how this business appears in AI-generated search results. Generate the analysis based on the ACTUAL results below.
 
 Business: ${name}
 Location: ${city}, ${state}
@@ -253,7 +243,7 @@ Now generate a JSON analysis. Return ONLY raw JSON — no markdown, no backticks
 {"overallScore":55,"accuracy":50,"sentiment":65,"insights":[{"type":"positive|warning|negative","text":"insight based on real query results"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"sources":[{"name":"Google Business","pct":35},{"name":"Yelp","pct":25},{"name":"Source3","pct":20},{"name":"Source4","pct":12},{"name":"Source5","pct":8}],"playbook":{"quickWins":["specific action","specific action","specific action"],"strategic":["strategic action","strategic action"],"easyExtras":["easy action","easy action"],"deprioritize":["low-value action","low-value action"]}}
 
 CRITICAL RULES:
-- Insights must reference the REAL query results above (e.g. "appeared in only X of 6 queries", "competitor Y dominated 4 of the queries")
+- Insights must reference the REAL query results above (e.g. "appeared in only X of 3 queries", "competitor Y dominated 4 of the queries")
 - overallScore should reflect actual visibility (${visibilityScore}%) blended with their Google reputation
 - Use industry-appropriate sources (StyleSeat/Vagaro for salons, Healthgrades for medical, Avvo for legal, etc.)
 - Make playbook actions specific to fixing what the real queries revealed
