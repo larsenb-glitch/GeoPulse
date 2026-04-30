@@ -71,8 +71,8 @@ async function queryClaudeWithSearch(prompt, anthropicKey) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 800,
+        model: 'claude-sonnet-4-5',
+        max_tokens: 500,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -133,21 +133,29 @@ async function runAIQueries(name, city, state, industry, competitorList, anthrop
     `Is ${name} a good ${industry} in ${city}? How does it compare to competitors?`,
   ];
 
-  const results = await Promise.all(
-    queries.map(async (q) => {
-      const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
-      const mention = checkMention(text, name);
-      const competitorsMentioned = findCompetitorMentions(text, competitorList);
-      return {
-        query: q,
-        response: text,
-        mentioned: mention.mentioned,
-        position: mention.position,
-        competitorsMentioned: competitorsMentioned.map(c => c.name),
-        error,
-      };
-    })
-  );
+  // Run in batches of 2 to avoid rate limits
+  const results = [];
+  for (let i = 0; i < queries.length; i += 2) {
+    const batch = queries.slice(i, i + 2);
+    const batchResults = await Promise.all(
+      batch.map(async (q) => {
+        const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
+        const mention = checkMention(text, name);
+        const competitorsMentioned = findCompetitorMentions(text, competitorList);
+        return {
+          query: q,
+          response: text,
+          mentioned: mention.mentioned,
+          position: mention.position,
+          competitorsMentioned: competitorsMentioned.map(c => c.name),
+          error,
+        };
+      })
+    );
+    results.push(...batchResults);
+    // Small delay between batches
+    if (i + 2 < queries.length) await new Promise(r => setTimeout(r, 1000));
+  }
 
   return results;
 }
@@ -254,7 +262,7 @@ CRITICAL RULES:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1500,
         messages: [{ role: 'user', content: analysisPrompt }],
       }),
