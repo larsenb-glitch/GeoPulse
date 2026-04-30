@@ -13,6 +13,28 @@ function scoreLabel(s) {
   return 'Weak'
 }
 
+function CopyableField({ label, value, multiline = false }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    navigator.clipboard.writeText(value || '')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className={styles.copyField}>
+      <div className={styles.copyFieldHeader}>
+        <span className={styles.copyFieldLabel}>{label}</span>
+        <button className={styles.copyBtn} onClick={copy}>
+          {copied ? '✓ Copied' : '📋 Copy'}
+        </button>
+      </div>
+      <div className={multiline ? styles.copyFieldValueMulti : styles.copyFieldValue}>{value}</div>
+    </div>
+  )
+}
+
 export default function AuditResults({ audit, bizInfo, onReset }) {
   const maxPct = Math.max(...(audit.sources || []).map(s => s.pct), 1)
 
@@ -25,6 +47,14 @@ export default function AuditResults({ audit, bizInfo, onReset }) {
         </div>
         <button className={styles.resetBtn} onClick={onReset}>← New audit</button>
       </div>
+
+      {/* Executive summary - new */}
+      {audit.executiveSummary && (
+        <div className={styles.execSummary}>
+          <div className={styles.execLabel}>Executive Summary</div>
+          <p className={styles.execText}>{audit.executiveSummary}</p>
+        </div>
+      )}
 
       {/* Score cards */}
       <div className={styles.scoreGrid}>
@@ -53,12 +83,25 @@ export default function AuditResults({ audit, bizInfo, onReset }) {
         ))}
       </div>
 
-      {/* AI Query Results - the killer feature */}
+      {/* Revenue impact - new */}
+      {audit.revenueImpact && (
+        <div className={styles.revenuePanel}>
+          <div className={styles.revenueHeader}>
+            <div>
+              <div className={styles.revenueLabel}>💰 Estimated revenue impact</div>
+              <div className={styles.revenueAmount}>{audit.revenueImpact.estimate}<span>/month lost</span></div>
+            </div>
+          </div>
+          <p className={styles.revenueExplanation}>{audit.revenueImpact.explanation}</p>
+        </div>
+      )}
+
+      {/* AI Query Results */}
       {audit.aiQueries && audit.aiQueries.length > 0 && (
         <Section label="🔍 What AI actually said when we asked">
           <div className={styles.queriesContainer}>
             {audit.aiQueries.map((q, i) => (
-              <QueryCard key={i} query={q} businessName={bizInfo.name} />
+              <QueryCard key={i} query={q} businessName={bizInfo.name} keyQuote={audit.keyQuotes?.[i]} />
             ))}
           </div>
         </Section>
@@ -116,22 +159,49 @@ export default function AuditResults({ audit, bizInfo, onReset }) {
           <PlaybookCell title="Deprioritize" subtitle="Low impact · More effort" chipClass={styles.chipGray} items={audit.playbook?.deprioritize} />
         </div>
       </Section>
+
+      {/* === REPORT-READY EXPORT SECTION === */}
+      <Section label="📄 Report-ready content (for client PDF)">
+        <div className={styles.exportPanel}>
+          <p className={styles.exportIntro}>
+            Polished content for your printed client report. Click any field to copy.
+          </p>
+
+          {audit.reportInsights && (
+            <div className={styles.exportGroup}>
+              <div className={styles.exportGroupLabel}>Polished insights for report</div>
+              {audit.reportInsights.map((ins, i) => (
+                <CopyableField
+                  key={i}
+                  label={`INSIGHT_${i + 1}`}
+                  value={ins.text}
+                  multiline
+                />
+              ))}
+            </div>
+          )}
+
+          {audit.outreachSubject && (
+            <div className={styles.exportGroup}>
+              <div className={styles.exportGroupLabel}>Outreach email subject line</div>
+              <CopyableField label="SUBJECT" value={audit.outreachSubject} />
+            </div>
+          )}
+        </div>
+      </Section>
     </div>
   )
 }
 
-function QueryCard({ query, businessName }) {
+function QueryCard({ query, businessName, keyQuote }) {
   const [expanded, setExpanded] = useState(false)
   const preview = query.response.slice(0, 240)
   const showMore = query.response.length > 240
 
-  // Highlight business name and competitor names in the response
   const highlightText = (text) => {
     let result = text
-    // Highlight business name in green
     const bizRegex = new RegExp(`(${businessName.split(' ')[0]}[\\w\\s&]*)`, 'gi')
     result = result.replace(bizRegex, '<mark class="biz-mark">$1</mark>')
-    // Highlight competitors in orange
     query.competitorsMentioned.forEach(comp => {
       const compRegex = new RegExp(`(${comp.split(' ')[0]}[\\w\\s&]*)`, 'gi')
       result = result.replace(compRegex, '<mark class="comp-mark">$1</mark>')
@@ -147,6 +217,13 @@ function QueryCard({ query, businessName }) {
           {query.mentioned ? `✓ Mentioned` : '✗ Not mentioned'}
         </div>
       </div>
+
+      {keyQuote && (
+        <div className={styles.keyQuote}>
+          <span className={styles.keyQuoteLabel}>Key takeaway:</span> "{keyQuote}"
+        </div>
+      )}
+
       <div
         className={styles.queryResponse}
         dangerouslySetInnerHTML={{ __html: highlightText(expanded ? query.response : preview) + (showMore && !expanded ? '...' : '') }}
