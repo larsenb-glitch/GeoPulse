@@ -59,8 +59,8 @@ async function getPlacesData(name, city, state, industry, googleApiKey) {
   }
 }
 
-// ============ AI QUERIES ============
-async function queryClaudeNoSearch(prompt, anthropicKey) {
+// ============ AI QUERIES (with web search for real local data) ============
+async function queryClaudeWithSearch(prompt, anthropicKey) {
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -71,7 +71,8 @@ async function queryClaudeNoSearch(prompt, anthropicKey) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 350,
+        max_tokens: 400,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -139,15 +140,15 @@ function validateQuote(quote, sourceText) {
 
 async function runAIQueries(name, city, state, industry, competitorList, anthropicKey) {
   const queries = [
-    `Based on what you know, what are the best ${industry} options in ${city}, ${state}? List your top 3-5 recommendations briefly.`,
-    `If a friend asked you to recommend a highly-rated ${industry} in ${city}, ${state}, who would you suggest and why?`,
-    `Is ${name} a good ${industry} in ${city}, ${state}? How does it compare to other options in the area?`,
+    `Search for the best ${industry} in ${city}, ${state} right now. List the top 3-5 real businesses with their ratings and key strengths. Do not list any business unless you have actual evidence it exists.`,
+    `What ${industry} would you recommend in ${city}, ${state}? Search for real, currently-operating businesses with strong reviews and tell me which to consider.`,
+    `Look up ${name} in ${city}, ${state}. Is it a good ${industry}? How does it compare to other real ${industry} options in the area?`,
   ];
 
   const results = [];
   for (let i = 0; i < queries.length; i++) {
     const q = queries[i];
-    const { text, error } = await queryClaudeNoSearch(q, anthropicKey);
+    const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
     const mention = checkMention(text, name);
     const competitorsMentioned = findCompetitorMentions(text, competitorList);
     results.push({
@@ -158,7 +159,7 @@ async function runAIQueries(name, city, state, industry, competitorList, anthrop
       competitorsMentioned: competitorsMentioned.map(c => c.name),
       error,
     });
-    if (i < queries.length - 1) await new Promise(r => setTimeout(r, 1500));
+    if (i < queries.length - 1) await new Promise(r => setTimeout(r, 3000));
   }
 
   return results;
@@ -289,9 +290,10 @@ export default async function handler(req, res) {
 
   // Step 4: Send to Claude for analysis (clearly bounded — no inventing numbers)
   const truncatedResponses = aiQueries.map((q, i) => {
-    const truncated = q.response.length > 400 ? q.response.slice(0, 400) + '...' : q.response;
+    const truncated = q.response.length > 250 ? q.response.slice(0, 250) + '...' : q.response;
     const status = q.mentioned ? `MENTIONED (pos ${q.position})` : 'NOT MENTIONED';
-    return `Q${i+1}: "${q.query.slice(0, 80)}..."\nResult: ${status}\nResponse excerpt: ${truncated}`;
+    const compsList = q.competitorsMentioned.length > 0 ? `Competitors found: ${q.competitorsMentioned.join(', ')}` : 'No tracked competitors mentioned';
+    return `Q${i+1} [${status}]: ${truncated}\n${compsList}`;
   }).join('\n\n');
 
   const businessContext = business
@@ -333,7 +335,7 @@ STRICT RULES:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1800,
+        max_tokens: 1200,
         messages: [{ role: 'user', content: analysisPrompt }],
       }),
     });
