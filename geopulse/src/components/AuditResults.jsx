@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import styles from './AuditResults.module.css'
+import { openPDFReport } from './reportGenerator.js'
 
 function scoreColor(s) {
   if (s == null) return 'var(--text-muted)'
@@ -53,7 +54,12 @@ export default function AuditResults({ audit, bizInfo, onReset }) {
           <h2 className={styles.bizName}>{bizInfo.name}</h2>
           <p className={styles.bizSub}>{bizInfo.city}{bizInfo.state ? `, ${bizInfo.state}` : ''} · {bizInfo.industry}</p>
         </div>
-        <button className={styles.resetBtn} onClick={onReset}>← New audit</button>
+        <div className={styles.topActions}>
+          <button className={styles.pdfBtn} onClick={() => openPDFReport(audit, bizInfo, { name: 'Larsen B.', email: 'your@email.com', phone: '(801) 555-0000' })}>
+            📄 Generate PDF Report
+          </button>
+          <button className={styles.resetBtn} onClick={onReset}>← New audit</button>
+        </div>
       </div>
 
       {/* Data integrity toggle */}
@@ -349,3 +355,4 @@ function PlaybookCell({ title, subtitle, chipClass, items = [] }) {
     </div>
   )
 }
+
