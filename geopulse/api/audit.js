@@ -7,7 +7,7 @@ async function searchPlace(query, city, state, lat, lng, googleApiKey) {
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': googleApiKey,
-      'X-Goog-FieldMask': 'places.displayName,places.rating,places.userRatingCount,places.websiteUri',
+      'X-Goog-FieldMask': 'places.displayName,places.rating,places.userRatingCount,places.websiteUri,places.formattedAddress',
     },
     body: JSON.stringify({
       textQuery: `${query} in ${city}, ${state}`,
@@ -43,6 +43,7 @@ async function getPlacesData(name, city, state, industry, googleApiKey) {
         name: p.displayName?.text || 'Unknown',
         rating: p.rating || null,
         reviews: p.userRatingCount || 0,
+        address: p.formattedAddress || null,
       }));
 
     return {
@@ -51,6 +52,7 @@ async function getPlacesData(name, city, state, industry, googleApiKey) {
         rating: business.rating || null,
         reviews: business.userRatingCount || 0,
         website: business.websiteUri || null,
+        address: business.formattedAddress || null,
       } : null,
       competitors,
     };
@@ -59,7 +61,7 @@ async function getPlacesData(name, city, state, industry, googleApiKey) {
   }
 }
 
-// ============ AI QUERIES (with web search for real local data) ============
+// ============ ONE WEB-SEARCHED AI QUERY ============
 async function queryClaudeWithSearch(prompt, anthropicKey) {
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -71,8 +73,37 @@ async function queryClaudeWithSearch(prompt, anthropicKey) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 400,
+        max_tokens: 500,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    const rawBody = await resp.text();
+    let data;
+    try { data = JSON.parse(rawBody); } catch (e) {
+      return { text: '', error: 'Non-JSON: ' + rawBody.slice(0, 100) };
+    }
+    if (data.error) return { text: '', error: data.error.message };
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    return { text, error: null };
+  } catch (err) {
+    return { text: '', error: err.message };
+  }
+}
+
+// ============ NO-SEARCH AI QUERIES (using context from search + Places) ============
+async function queryClaudeNoSearch(prompt, anthropicKey) {
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 400,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -121,71 +152,18 @@ function findCompetitorMentions(text, competitorList) {
     .sort((a, b) => a.position - b.position);
 }
 
-// Validate that an AI-extracted quote actually appears in the source text
 function validateQuote(quote, sourceText) {
   if (!quote || !sourceText) return false;
-  // Strip quotation marks and normalize whitespace
   const cleanQuote = quote.replace(/["'""'']/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   const cleanSource = sourceText.toLowerCase().replace(/\s+/g, ' ');
   if (cleanQuote.length < 5) return false;
-  // Check if at least 60% of the quote words appear in sequence
+  if (cleanSource.includes(cleanQuote)) return true;
   const words = cleanQuote.split(' ').filter(w => w.length > 2);
   if (words.length === 0) return false;
-  // Try exact match first
-  if (cleanSource.includes(cleanQuote)) return true;
-  // Try first half of quote
   const half = words.slice(0, Math.max(3, Math.floor(words.length / 2))).join(' ');
   return cleanSource.includes(half);
 }
 
-async function runAIQueries(name, city, state, industry, competitorList, anthropicKey) {
-  const queries = [
-    `Search for the best ${industry} in ${city}, ${state} right now. List the top 3-5 real businesses with their ratings and key strengths. Do not list any business unless you have actual evidence it exists.`,
-    `What ${industry} would you recommend in ${city}, ${state}? Search for real, currently-operating businesses with strong reviews and tell me which to consider.`,
-    `Look up ${name} in ${city}, ${state}. Is it a good ${industry}? How does it compare to other real ${industry} options in the area?`,
-  ];
-
-  const results = [];
-  for (let i = 0; i < queries.length; i++) {
-    const q = queries[i];
-    const { text, error } = await queryClaudeWithSearch(q, anthropicKey);
-    const mention = checkMention(text, name);
-    const competitorsMentioned = findCompetitorMentions(text, competitorList);
-    results.push({
-      query: q,
-      response: text,
-      mentioned: mention.mentioned,
-      position: mention.position,
-      competitorsMentioned: competitorsMentioned.map(c => c.name),
-      error,
-    });
-    if (i < queries.length - 1) await new Promise(r => setTimeout(r, 3000));
-  }
-
-  return results;
-}
-
-// Compute accuracy based on whether AI mentioned correct details
-function computeAccuracy(aiQueries, business) {
-  if (!business) return null; // can't verify without ground truth
-  let signals = 0;
-  let correct = 0;
-  aiQueries.forEach(q => {
-    if (!q.mentioned) return;
-    // If they were mentioned, check if real details appear
-    const text = q.response.toLowerCase();
-    // Did rating range get referenced correctly? (approximate)
-    if (business.rating) {
-      signals++;
-      // Can't easily verify rating accuracy from free text — count as neutral
-      correct += 0.5;
-    }
-  });
-  if (signals === 0) return null;
-  return Math.round((correct / signals) * 100);
-}
-
-// Compute sentiment based on actual response text around the business mention
 function computeSentiment(aiQueries, businessName) {
   const positiveWords = ['excellent', 'great', 'recommended', 'top', 'best', 'popular', 'loved', 'favorite', 'highly', 'quality', 'professional'];
   const negativeWords = ['avoid', 'poor', 'bad', 'mediocre', 'disappointing', 'lacking', 'overpriced', 'rude'];
@@ -195,46 +173,27 @@ function computeSentiment(aiQueries, businessName) {
     const text = q.response.toLowerCase();
     const nameIdx = text.indexOf(businessName.toLowerCase().split(' ')[0]);
     if (nameIdx === -1) return;
-    // Look at 200 chars around the mention
     const context = text.slice(Math.max(0, nameIdx - 100), nameIdx + 200);
     positiveWords.forEach(w => { if (context.includes(w)) pos++; });
     negativeWords.forEach(w => { if (context.includes(w)) neg++; });
     total++;
   });
   if (total === 0) return null;
-  // Neutral baseline 50, adjust up/down
   const adjustment = (pos - neg * 1.5) * 10;
   return Math.max(0, Math.min(100, 50 + adjustment));
 }
 
-// Industry-appropriate source list (no fake percentages, just real platforms)
 function getIndustrySources(industry) {
   const lower = industry.toLowerCase();
   const universal = ['Google Business Profile', 'Yelp'];
-  if (lower.match(/salon|spa|hair|nails|beauty/)) {
-    return [...universal, 'StyleSeat', 'Vagaro', 'Booksy', 'Facebook'];
-  }
-  if (lower.match(/restaurant|food|cafe|bar|eat|dining/)) {
-    return [...universal, 'TripAdvisor', 'OpenTable', 'DoorDash reviews', 'Facebook'];
-  }
-  if (lower.match(/doctor|medical|clinic|dental|dentist|chiropractor|physical/)) {
-    return [...universal, 'Healthgrades', 'WebMD', 'Zocdoc', 'Vitals'];
-  }
-  if (lower.match(/lawyer|law|attorney|legal/)) {
-    return [...universal, 'Avvo', 'FindLaw', 'Martindale', 'Justia'];
-  }
-  if (lower.match(/contractor|plumb|electric|roof|hvac|construction|handyman/)) {
-    return [...universal, 'Angi', 'HomeAdvisor', 'Houzz', 'Thumbtack'];
-  }
-  if (lower.match(/real estate|realtor|agent|property/)) {
-    return [...universal, 'Zillow', 'Realtor.com', 'Redfin'];
-  }
-  if (lower.match(/auto|car|mechanic|repair/)) {
-    return [...universal, 'RepairPal', 'CarTalk', 'Facebook'];
-  }
-  if (lower.match(/gym|fitness|yoga|training/)) {
-    return [...universal, 'ClassPass', 'Mindbody', 'Facebook'];
-  }
+  if (lower.match(/salon|spa|hair|nails|beauty/)) return [...universal, 'StyleSeat', 'Vagaro', 'Booksy', 'Facebook'];
+  if (lower.match(/restaurant|food|cafe|bar|eat|dining/)) return [...universal, 'TripAdvisor', 'OpenTable', 'DoorDash reviews', 'Facebook'];
+  if (lower.match(/doctor|medical|clinic|dental|dentist|chiropractor|physical/)) return [...universal, 'Healthgrades', 'WebMD', 'Zocdoc', 'Vitals'];
+  if (lower.match(/lawyer|law|attorney|legal/)) return [...universal, 'Avvo', 'FindLaw', 'Martindale', 'Justia'];
+  if (lower.match(/contractor|plumb|electric|roof|hvac|construction|handyman/)) return [...universal, 'Angi', 'HomeAdvisor', 'Houzz', 'Thumbtack'];
+  if (lower.match(/real estate|realtor|agent|property/)) return [...universal, 'Zillow', 'Realtor.com', 'Redfin'];
+  if (lower.match(/auto|car|mechanic|repair/)) return [...universal, 'RepairPal', 'CarTalk', 'Facebook'];
+  if (lower.match(/gym|fitness|yoga|training/)) return [...universal, 'ClassPass', 'Mindbody', 'Facebook'];
   return [...universal, 'Facebook', 'Bing Places', 'Apple Maps'];
 }
 
@@ -258,21 +217,79 @@ export default async function handler(req, res) {
   const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
-  // Step 1: Get Places data (VERIFIED)
+  // Step 1: Get real Google Places data
   const { business, competitors } = googleApiKey
     ? await getPlacesData(name, city, state, industry, googleApiKey)
     : { business: null, competitors: [] };
 
-  // Step 2: Run AI queries (VERIFIED — actual responses)
-  const aiQueries = await runAIQueries(name, city, state, industry, competitors, anthropicKey);
+  // Step 2: ONE web-searched query — the killer evidence
+  const searchedQuery = `Search for the best ${industry} in ${city}, ${state} right now. List the top 3-5 real businesses with their names, star ratings, and key strengths. Only include businesses you have actual evidence for from your search.`;
 
-  // Step 3: Compute VERIFIED metrics from real data
+  const { text: searchedResponse, error: searchError } = await queryClaudeWithSearch(searchedQuery, anthropicKey);
+
+  // Wait 4 seconds before next call to reset the per-minute token bucket
+  await new Promise(r => setTimeout(r, 4000));
+
+  // Step 3: Two follow-up queries using the search context (no additional searches)
+  const competitorListStr = competitors.length > 0
+    ? competitors.slice(0, 5).map(c => `${c.name} (${c.reviews} reviews, ${c.rating ?? '?'}★)`).join(', ')
+    : 'unknown';
+
+  const followUpQuery1 = `Based ONLY on what's stated below, would you recommend ${name} in ${city}, ${state}?
+
+What an AI search just returned about ${industry} in ${city}: "${searchedResponse.slice(0, 600)}"
+
+Real businesses pulled from Google Places nearby: ${competitorListStr}
+
+${name} has ${business?.reviews || 'unknown'} Google reviews and a ${business?.rating || 'unknown'} star rating.
+
+Write a brief honest comparison: is ${name} likely to be the top recommendation, or are competitors winning? 2-3 sentences max.`;
+
+  const followUpQuery2 = `A friend asks: "where should I go for ${industry} in ${city}, ${state}?"
+
+You just researched this. The top businesses appearing in AI recommendations were: "${searchedResponse.slice(0, 400)}"
+
+${name} has ${business?.reviews || '?'} reviews / ${business?.rating || '?'}★. Other real options: ${competitorListStr}.
+
+In 2-3 sentences, what's your honest recommendation, and how does ${name} factor in?`;
+
+  await new Promise(r => setTimeout(r, 2000));
+  const { text: followUp1Response } = await queryClaudeNoSearch(followUpQuery1, anthropicKey);
+
+  await new Promise(r => setTimeout(r, 2000));
+  const { text: followUp2Response } = await queryClaudeNoSearch(followUpQuery2, anthropicKey);
+
+  // Build the AI queries array (frontend expects this shape)
+  const aiQueries = [
+    {
+      query: `Search: What are the best ${industry} in ${city}, ${state}?`,
+      response: searchedResponse,
+      ...checkMention(searchedResponse, name),
+      mentioned: checkMention(searchedResponse, name).mentioned,
+      position: checkMention(searchedResponse, name).position,
+      competitorsMentioned: findCompetitorMentions(searchedResponse, competitors).map(c => c.name),
+    },
+    {
+      query: `Compare: Would AI recommend ${name} over competitors?`,
+      response: followUp1Response,
+      mentioned: checkMention(followUp1Response, name).mentioned,
+      position: checkMention(followUp1Response, name).position,
+      competitorsMentioned: findCompetitorMentions(followUp1Response, competitors).map(c => c.name),
+    },
+    {
+      query: `Recommend: Where should I go for ${industry} in ${city}?`,
+      response: followUp2Response,
+      mentioned: checkMention(followUp2Response, name).mentioned,
+      position: checkMention(followUp2Response, name).position,
+      competitorsMentioned: findCompetitorMentions(followUp2Response, competitors).map(c => c.name),
+    },
+  ];
+
   const totalQueries = aiQueries.length;
   const mentionsCount = aiQueries.filter(q => q.mentioned).length;
   const visibilityScore = Math.round((mentionsCount / totalQueries) * 100);
   const sentimentScore = computeSentiment(aiQueries, name);
 
-  // Real competitor mention rankings
   const competitorMentionCounts = {};
   aiQueries.forEach(q => {
     q.competitorsMentioned.forEach(name => {
@@ -285,45 +302,39 @@ export default async function handler(req, res) {
     .slice(0, 6)
     .map(([name, count]) => ({ name, mentions: count }));
 
-  // Industry-appropriate source platforms (no fake percentages)
   const sourcePlatforms = getIndustrySources(industry);
 
-  // Step 4: Send to Claude for analysis (clearly bounded — no inventing numbers)
+  // Step 4: Final analysis call — very compact
+  await new Promise(r => setTimeout(r, 3000));
+
   const truncatedResponses = aiQueries.map((q, i) => {
-    const truncated = q.response.length > 250 ? q.response.slice(0, 250) + '...' : q.response;
+    const truncated = q.response.length > 200 ? q.response.slice(0, 200) + '...' : q.response;
     const status = q.mentioned ? `MENTIONED (pos ${q.position})` : 'NOT MENTIONED';
-    const compsList = q.competitorsMentioned.length > 0 ? `Competitors found: ${q.competitorsMentioned.join(', ')}` : 'No tracked competitors mentioned';
+    const compsList = q.competitorsMentioned.length > 0 ? `Comps: ${q.competitorsMentioned.join(', ')}` : 'No comps';
     return `Q${i+1} [${status}]: ${truncated}\n${compsList}`;
   }).join('\n\n');
 
   const businessContext = business
-    ? `VERIFIED Google data: ${business.rating ?? '?'} stars, ${business.reviews} reviews, website: ${business.website || website || 'none'}`
-    : `No Google data found for ${name}`;
+    ? `${name}: ${business.rating ?? '?'}★, ${business.reviews} reviews`
+    : `${name}: no Google data`;
 
   const competitorContext = competitors.length > 0
-    ? competitors.slice(0, 5).map(c => `${c.name} (${c.reviews} reviews, ${c.rating ?? '?'}★)`).join('; ')
+    ? competitors.slice(0, 4).map(c => `${c.name} (${c.reviews}rev, ${c.rating ?? '?'}★)`).join('; ')
     : 'No competitor data';
 
-  const analysisPrompt = `Generate a GEO audit analysis. Return ONLY raw JSON, no markdown.
+  const analysisPrompt = `Generate a GEO audit. Return ONLY raw JSON.
 
 Business: ${name} | ${city}, ${state} | ${industry}
 ${businessContext}
-Real competitors found nearby: ${competitorContext}
-
-I ran 3 real AI queries. Result: business mentioned in ${mentionsCount}/${totalQueries} queries = ${visibilityScore}% visibility.
+Competitors: ${competitorContext}
+Visibility: ${mentionsCount}/${totalQueries} (${visibilityScore}%)
 
 ${truncatedResponses}
 
-Return this JSON exactly:
-{"overallScore":55,"insights":[{"type":"positive|warning|negative","text":"insight referencing actual query results"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"reportInsights":[{"type":"positive|warning|negative","text":"longer polished insight for printed report, 25-35 words, MUST reference real numbers from data above"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"keyQuotes":["VERBATIM 8-15 word excerpt copied directly from query 1 response text above","VERBATIM excerpt from query 2","VERBATIM excerpt from query 3"],"playbook":{"quickWins":["specific action","specific action","specific action"],"strategic":["strategic action","strategic action"],"easyExtras":["easy action","easy action"],"deprioritize":["low-value action","low-value action"]},"revenueImpact":{"estimate":"$X-Y","explanation":"~25 word range based on industry, MUST be conservative and acknowledge it's an estimate","calculation":"brief note on how estimated, e.g. 'based on ~5-10 lost customers/mo at typical industry CLV'"},"outreachSubject":"compelling 6-10 word email subject line","executiveSummary":"40-60 word summary written for the business owner"}
+Return:
+{"overallScore":55,"insights":[{"type":"positive|warning|negative","text":"insight"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"reportInsights":[{"type":"positive|warning|negative","text":"polished 25-35 word insight with real numbers"},{"type":"...","text":"..."},{"type":"...","text":"..."},{"type":"...","text":"..."}],"keyQuotes":["VERBATIM 8-15 word excerpt from Q1","VERBATIM excerpt from Q2","VERBATIM excerpt from Q3"],"playbook":{"quickWins":["action","action","action"],"strategic":["action","action"],"easyExtras":["action","action"],"deprioritize":["action","action"]},"revenueImpact":{"estimate":"$X-Y","explanation":"~25 word conservative range","calculation":"brief calc method"},"outreachSubject":"6-10 word subject","executiveSummary":"40-60 word summary"}
 
-STRICT RULES:
-1. KEY QUOTES must be COPIED VERBATIM from the response excerpts above — do not paraphrase or invent
-2. overallScore must reflect actual ${visibilityScore}% visibility result
-3. NEVER invent statistics, percentages, or numbers not provided above
-4. Revenue impact must be a RANGE (e.g. "$1,200-2,400") and explanation must acknowledge it's a conservative estimate
-5. All insights must reference real data: the ${visibilityScore}% visibility, competitor names from the list, or Google review counts
-6. Do NOT make up details about the business beyond what's stated above`;
+Rules: keyQuotes MUST be verbatim from responses above. overallScore reflects ${visibilityScore}% visibility. No inventing numbers.`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -357,7 +368,6 @@ STRICT RULES:
     const jsonStr = start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw;
     const analysis = JSON.parse(jsonStr);
 
-    // Validate key quotes against actual response text
     const validatedQuotes = (analysis.keyQuotes || []).map((quote, i) => {
       const sourceText = aiQueries[i]?.response || '';
       const verified = validateQuote(quote, sourceText);
@@ -368,18 +378,12 @@ STRICT RULES:
       ...analysis,
       visibility: visibilityScore,
       sentiment: sentimentScore !== null ? sentimentScore : analysis.sentiment,
-      accuracy: null, // we don't have ground truth to verify accuracy claims
+      accuracy: null,
       keyQuotes: validatedQuotes,
       competitors: realCompetitorRanking.length > 0 ? realCompetitorRanking :
         competitors.slice(0, 4).map(c => ({ name: c.name, mentions: 0 })),
       sources: sourcePlatforms.map(name => ({ name })),
-      aiQueries: aiQueries.map(q => ({
-        query: q.query,
-        response: q.response,
-        mentioned: q.mentioned,
-        position: q.position,
-        competitorsMentioned: q.competitorsMentioned,
-      })),
+      aiQueries,
       _meta: {
         businessData: business,
         totalQueries,
@@ -390,7 +394,8 @@ STRICT RULES:
           'Business Google rating & review count',
           'Business website URL',
           'Competitor names, ratings & review counts',
-          'AI query responses (verbatim)',
+          'Web-searched AI response (Q1, verbatim)',
+          'Follow-up AI responses (Q2/Q3, verbatim)',
           'Mention detection (real string match)',
           'Visibility score (calculated from real mentions)',
           'Competitor mention counts',
@@ -402,7 +407,6 @@ STRICT RULES:
           'Insights & analysis (AI interpretation)',
           'Action playbook items (AI recommendations)',
           'Revenue impact (industry benchmark estimate)',
-          'Sentiment fallback if no AI mention',
         ],
         notProvided: [
           'AI source attribution percentages (cannot be measured reliably)',
@@ -415,6 +419,6 @@ STRICT RULES:
     return;
   } catch (err) {
     res.status(500).json({ error: err.message });
-      return;
+    return;
   }
 }
