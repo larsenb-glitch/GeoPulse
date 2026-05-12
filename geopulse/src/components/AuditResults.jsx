@@ -55,7 +55,7 @@ export default function AuditResults({ audit, bizInfo, onReset }) {
           <p className={styles.bizSub}>{bizInfo.city}{bizInfo.state ? `, ${bizInfo.state}` : ''} · {bizInfo.industry}</p>
         </div>
         <div className={styles.topActions}>
-          <button className={styles.pdfBtn} onClick={() => openPDFReport(audit, bizInfo, { name: 'Larsen B.', email: 'your@email.com', phone: '(801) 555-0000' })}>
+          <button className={styles.pdfBtn} onClick={() => openPDFReport(audit, bizInfo, { name: 'Larsen B.', email: 'larsenbrooks@me.com', phone: '(801) 652 7274' })}>
             📄 Generate PDF Report
           </button>
           <button className={styles.resetBtn} onClick={onReset}>← New audit</button>
