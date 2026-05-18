@@ -105,21 +105,19 @@ const REPORT_CSS = `
   .comp-name { font-weight: 500; }
   .comp-badge { background: var(--amber-50); color: var(--amber-text); font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
 
-  .playbook-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
-  .playbook-cell { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
-  .playbook-cell-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 2px; }
-  .playbook-cell-sub { font-size: 10px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-  .chip { display: inline-block; font-size: 11px; padding: 5px 10px; border-radius: 99px; margin: 3px 3px 3px 0; line-height: 1.3; font-weight: 500; }
-  .chip-green { background: var(--teal-50); color: var(--teal-dark); }
-  .chip-amber { background: var(--amber-50); color: var(--amber-text); }
-  .chip-blue { background: #E6F1FB; color: #185FA5; }
-  .chip-gray { background: #F0EFEB; color: var(--ink-light); }
+  .fix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  .fix-cell { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .fix-cell-icon { font-size: 22px; margin-bottom: 8px; }
+  .fix-cell-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--ink); }
+  .fix-cell-text { font-size: 12px; color: var(--ink-light); line-height: 1.55; }
 
   .cta-page { display: flex; flex-direction: column; justify-content: space-between; min-height: 9.8in; }
   .cta-hero { background: var(--teal-darkest); color: white; border-radius: 16px; padding: 60px 48px; text-align: center; margin: 60px 0; }
   .cta-hero-title { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; letter-spacing: -1px; margin-bottom: 18px; line-height: 1.1; }
   .cta-hero-sub { font-size: 16px; color: var(--teal-100); line-height: 1.5; margin-bottom: 36px; max-width: 5in; margin-left: auto; margin-right: auto; }
-  .cta-package-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 32px; }
+  .cta-package-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; max-width: 6.5in; margin-left: auto; margin-right: auto; }
+  .cta-pkg-desc { font-size: 12px; color: var(--ink-muted); line-height: 1.5; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .cta-pkg-footer { font-size: 10px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); text-align: center; }
   .cta-package { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 22px; text-align: left; }
   .cta-package.featured { border-color: var(--teal); border-width: 2px; background: white; }
   .cta-pkg-name { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
@@ -401,27 +399,28 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
     </div>
   </div>
 
-  <h3 style="font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 10px;">Action playbook</h3>
-  <div class="playbook-grid">
-    <div class="playbook-cell">
-      <div class="playbook-cell-title">Quick wins</div>
-      <div class="playbook-cell-sub">High impact · Easy</div>
-      <div>${chipList(playbook.quickWins, 'chip-green')}</div>
+  <h3 style="font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 4px;">What I can fix for you</h3>
+  <p style="font-size: 12px; color: var(--ink-muted); margin-bottom: 14px;">Technical work most local businesses don't have the in-house expertise to execute</p>
+  <div class="fix-grid">
+    <div class="fix-cell">
+      <div class="fix-cell-icon">🔧</div>
+      <div class="fix-cell-title">Structured data engineering</div>
+      <div class="fix-cell-text">Hand-coded LocalBusiness, Service, and Review schema markup deployed to your website's source — the machine-readable signals AI models prioritize when ranking businesses.</div>
     </div>
-    <div class="playbook-cell">
-      <div class="playbook-cell-title">Strategic investments</div>
-      <div class="playbook-cell-sub">High impact · More effort</div>
-      <div>${chipList(playbook.strategic, 'chip-amber')}</div>
+    <div class="fix-cell">
+      <div class="fix-cell-icon">🎯</div>
+      <div class="fix-cell-title">Citation & entity alignment</div>
+      <div class="fix-cell-text">Cross-platform audit and reconciliation of your business identity across the 20+ data sources AI models crawl — eliminating the inconsistencies that confuse ranking algorithms.</div>
     </div>
-    <div class="playbook-cell">
-      <div class="playbook-cell-title">Easy extras</div>
-      <div class="playbook-cell-sub">Lower impact · Easy</div>
-      <div>${chipList(playbook.easyExtras, 'chip-blue')}</div>
+    <div class="fix-cell">
+      <div class="fix-cell-icon">📈</div>
+      <div class="fix-cell-title">Authority signal building</div>
+      <div class="fix-cell-text">Strategic deployment of review velocity campaigns, custom content frameworks, and Q&A targeting designed to feed AI training pipelines with positive brand mentions.</div>
     </div>
-    <div class="playbook-cell">
-      <div class="playbook-cell-title">Deprioritize</div>
-      <div class="playbook-cell-sub">Lower impact · More effort</div>
-      <div>${chipList(playbook.deprioritize, 'chip-gray')}</div>
+    <div class="fix-cell">
+      <div class="fix-cell-icon">🔎</div>
+      <div class="fix-cell-title">GEO performance tracking</div>
+      <div class="fix-cell-text">Ongoing measurement of your visibility across ChatGPT, Claude, Gemini, and Perplexity using proprietary query frameworks — with monthly score reports and remediation roadmaps.</div>
     </div>
   </div>
 
@@ -442,37 +441,30 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
   </div>
 
   <div class="cta-package-grid">
-    <div class="cta-package">
-      <div class="cta-pkg-name">Audit Only</div>
-      <div class="cta-pkg-price">$497<span> one-time</span></div>
-      <ul class="cta-pkg-list">
-        <li>This full report</li>
-        <li>30-min strategy call</li>
-        <li>Custom action playbook</li>
-        <li>Tools & resources list</li>
-      </ul>
-    </div>
     <div class="cta-package featured">
-      <div class="cta-pkg-name" style="color: var(--teal);">★ Growth (recommended)</div>
-      <div class="cta-pkg-price">$997<span>/month</span></div>
+      <div class="cta-pkg-name" style="color: var(--teal);">★ GEO Quick Fix</div>
+      <div class="cta-pkg-price">$397<span> one-time</span></div>
+      <div class="cta-pkg-desc">Everything you need to start showing up in AI search — delivered in 2 weeks</div>
       <ul class="cta-pkg-list">
-        <li>Quarterly audit reports</li>
-        <li>Done-for-you quick wins</li>
-        <li>Review request campaigns</li>
-        <li>Schema & content updates</li>
-        <li>Monthly tracking dashboard</li>
+        <li>Schema markup deployment</li>
+        <li>Google Business Profile optimization</li>
+        <li>Listing consistency reconciliation</li>
+        <li>Targeted review velocity campaign</li>
+        <li>30-day re-audit & comparison report</li>
       </ul>
     </div>
     <div class="cta-package">
-      <div class="cta-pkg-name">Full Service</div>
-      <div class="cta-pkg-price">$1,997<span>/month</span></div>
+      <div class="cta-pkg-name">GEO Maintenance</div>
+      <div class="cta-pkg-price">$297<span>/month</span></div>
+      <div class="cta-pkg-desc">Stay on top of AI visibility once the foundation is in place</div>
       <ul class="cta-pkg-list">
-        <li>Everything in Growth</li>
-        <li>Weekly content creation</li>
+        <li>Monthly visibility tracking</li>
+        <li>Ongoing schema & content updates</li>
+        <li>Monthly review campaigns</li>
+        <li>Quarterly full audit reports</li>
         <li>Competitor monitoring</li>
-        <li>Multi-platform optimization</li>
-        <li>Priority support</li>
       </ul>
+      <div class="cta-pkg-footer">Add-on after Quick Fix</div>
     </div>
   </div>
 
