@@ -160,20 +160,63 @@ function escapeHtml(text) {
 function highlightInResponse(text, businessName, competitors) {
   if (!text) return '';
   let result = escapeHtml(text);
-  // Highlight business
-  const bizFirstWord = businessName.split(' ')[0];
-  if (bizFirstWord.length > 2) {
-    const bizRegex = new RegExp(`(${bizFirstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\w\\s&]*?)(?=[,.\\s])`, 'gi');
-    result = result.replace(bizRegex, '<mark class="biz">$1</mark>');
+
+  const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Build list of phrases to highlight, longest first so partial matches don't preempt longer ones
+  const bizPhrases = [businessName];
+  // Also add variants — "Noir Studios Salon" → also try "Noir Studios"
+  const bizWords = businessName.split(' ').filter(w => w.length > 2);
+  if (bizWords.length >= 2) {
+    bizPhrases.push(bizWords.slice(0, 2).join(' '));
+    bizPhrases.push(bizWords[0]);
+  } else if (bizWords[0]) {
+    bizPhrases.push(bizWords[0]);
   }
-  // Highlight competitors
+
+  const compPhrases = [];
   (competitors || []).forEach(comp => {
-    const firstWord = comp.split(' ')[0];
-    if (firstWord.length > 2) {
-      const compRegex = new RegExp(`(${firstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\w\\s&]*?)(?=[,.\\s])`, 'gi');
-      result = result.replace(compRegex, '<mark class="comp">$1</mark>');
+    compPhrases.push(comp);
+    const compWords = comp.split(' ').filter(w => w.length > 2);
+    if (compWords.length >= 2) {
+      compPhrases.push(compWords.slice(0, 2).join(' '));
     }
+    if (compWords[0]) compPhrases.push(compWords[0]);
   });
+
+  // Deduplicate and sort by length descending (longer phrases first to prevent partial overwrites)
+  const uniqueBiz = [...new Set(bizPhrases)].sort((a, b) => b.length - a.length);
+  const uniqueComp = [...new Set(compPhrases)].sort((a, b) => b.length - a.length);
+
+  // Use a placeholder system so we don't double-wrap or interfere with each other
+  const placeholders = [];
+  const PLACEHOLDER = (i) => `\x00HL${i}\x00`;
+
+  // Match using word boundaries so "king" doesn't match inside "taking"
+  uniqueBiz.forEach(phrase => {
+    if (phrase.length < 3) return;
+    const regex = new RegExp(`\\b(${escapeRegex(phrase)})\\b`, 'gi');
+    result = result.replace(regex, (match) => {
+      placeholders.push(`<mark class="biz">${match}</mark>`);
+      return PLACEHOLDER(placeholders.length - 1);
+    });
+  });
+
+  uniqueComp.forEach(phrase => {
+    if (phrase.length < 3) return;
+    const regex = new RegExp(`\\b(${escapeRegex(phrase)})\\b`, 'gi');
+    result = result.replace(regex, (match) => {
+      // Don't highlight if this match is inside a placeholder we already made
+      placeholders.push(`<mark class="comp">${match}</mark>`);
+      return PLACEHOLDER(placeholders.length - 1);
+    });
+  });
+
+  // Restore placeholders
+  placeholders.forEach((html, i) => {
+    result = result.replace(PLACEHOLDER(i), html);
+  });
+
   return result;
 }
 
