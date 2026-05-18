@@ -21,7 +21,7 @@ const REPORT_CSS = `
   .logo { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 0.6in; }
   .logo span { color: var(--teal); }
   .cover-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--teal); margin-bottom: 14px; }
-  .cover-title { font-family: 'Syne', sans-serif; font-size: 64px; font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 24px; }
+  .cover-title { font-family: 'Syne', sans-serif; font-size: 56px; font-weight: 800; line-height: 1.05; letter-spacing: -1.5px; margin-bottom: 24px; }
   .cover-sub { font-size: 18px; color: var(--ink-light); line-height: 1.5; max-width: 5.5in; margin-bottom: 0.5in; }
   .cover-business-card { background: var(--teal-darkest); color: white; padding: 32px 36px; border-radius: 14px; }
   .cover-business-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal-100); margin-bottom: 6px; }
@@ -32,7 +32,7 @@ const REPORT_CSS = `
 
   .section-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal); margin-bottom: 6px; }
   .section-title { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 8px; }
-  .section-sub { font-size: 14px; color: var(--ink-light); margin-bottom: 28px; max-width: 6in; }
+  .section-sub { font-size: 14px; color: var(--ink-light); margin-bottom: 24px; max-width: 6in; }
 
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
   .stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
@@ -85,7 +85,7 @@ const REPORT_CSS = `
   .query-footer { font-size: 11px; color: var(--ink-muted); }
   .query-footer strong { color: var(--ink); }
 
-  .insights-list { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 28px; }
+  .insights-list { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; page-break-inside: avoid; break-inside: avoid; }
   .insight-row { display: flex; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--border); align-items: flex-start; }
   .insight-row:last-child { border-bottom: none; }
   .insight-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
@@ -94,7 +94,7 @@ const REPORT_CSS = `
   .dot-negative { background: var(--red); }
   .insight-text { font-size: 13.5px; line-height: 1.55; color: var(--ink); }
 
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 28px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
   .panel { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .panel-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
   .panel-sub { font-size: 11px; color: var(--ink-muted); margin-bottom: 12px; }
@@ -105,11 +105,11 @@ const REPORT_CSS = `
   .comp-name { font-weight: 500; }
   .comp-badge { background: var(--amber-50); color: var(--amber-text); font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
 
-  .fix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
-  .fix-cell { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
-  .fix-cell-icon { font-size: 22px; margin-bottom: 8px; }
-  .fix-cell-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--ink); }
-  .fix-cell-text { font-size: 12px; color: var(--ink-light); line-height: 1.55; }
+  .fix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .fix-cell { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; page-break-inside: avoid; break-inside: avoid; }
+  .fix-cell-icon { font-size: 20px; margin-bottom: 6px; }
+  .fix-cell-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 5px; color: var(--ink); }
+  .fix-cell-text { font-size: 11.5px; color: var(--ink-light); line-height: 1.5; }
 
   .cta-page { display: flex; flex-direction: column; justify-content: space-between; min-height: 9.8in; }
   .cta-hero { background: var(--teal-darkest); color: white; border-radius: 16px; padding: 60px 48px; text-align: center; margin: 60px 0; }
@@ -259,7 +259,7 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
   <div class="cover-top">
     <div class="logo">Geo<span>Pulse</span></div>
     <div class="cover-eyebrow">AI Visibility Audit</div>
-    <h1 class="cover-title">How AI sees your business in ${escapeHtml(bizInfo.city)}.</h1>
+    <h1 class="cover-title">How AI sees ${escapeHtml(bizInfo.name)} in ${escapeHtml(bizInfo.city)}.</h1>
     <p class="cover-sub">A custom report on how ChatGPT, Claude, and other AI search engines describe your business — and what your competitors are getting that you aren't.</p>
   </div>
   <div class="cover-business-card">
@@ -316,7 +316,7 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
     <strong>Bottom line:</strong> AI search isn't replacing Google overnight, but it's where the next decade of customer discovery is being built. Businesses that show up in AI answers today are training the algorithms that will define their category tomorrow.
   </div>
 
-  <div class="footer">GeoPulse · AI Visibility Audit · Page 2</div>
+  <div class="footer">GeoPulse · AI Visibility Audit · Page 1 of 6</div>
 </div>
 
 <!-- PAGE 3: EXEC SUMMARY + SCORES + REVENUE -->
@@ -365,7 +365,7 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
     </div>
   ` : ''}
 
-  <div class="footer">GeoPulse · AI Visibility Audit · Page 3</div>
+  <div class="footer">GeoPulse · AI Visibility Audit · Page 2 of 6</div>
 </div>
 
 <!-- PAGE 4: AI QUERY EVIDENCE -->
@@ -374,7 +374,7 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
   <h2 class="section-title">What AI actually said when we asked.</h2>
   <p class="section-sub">We asked 3 different questions — the kind real customers ask AI tools daily. Here are the real, verbatim responses.</p>
   ${queryHTML}
-  <div class="footer">GeoPulse · AI Visibility Audit · Page 4</div>
+  <div class="footer">GeoPulse · AI Visibility Audit · Page 3 of 6</div>
 </div>
 
 <!-- PAGE 5: INSIGHTS + COMPETITORS + PLAYBOOK -->
@@ -424,7 +424,7 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
     </div>
   </div>
 
-  <div class="footer">GeoPulse · AI Visibility Audit · Page 5</div>
+  <div class="footer">GeoPulse · AI Visibility Audit · Page 4 of 6</div>
 </div>
 
 <!-- PAGE 6: CTA -->
