@@ -21,7 +21,7 @@ const REPORT_CSS = `
   .logo { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 0.6in; }
   .logo span { color: var(--teal); }
   .cover-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--teal); margin-bottom: 14px; }
-  .cover-title { font-family: 'Syne', sans-serif; font-size: 56px; font-weight: 800; line-height: 1.05; letter-spacing: -1.5px; margin-bottom: 24px; }
+  .cover-title { font-family: 'Syne', sans-serif; font-size: 56px; font-weight: 800; line-height: 1.18; letter-spacing: -1.5px; margin-bottom: 24px; padding-bottom: 8px; }
   .cover-sub { font-size: 18px; color: var(--ink-light); line-height: 1.5; max-width: 5.5in; margin-bottom: 0.5in; }
   .cover-business-card { background: var(--teal-darkest); color: white; padding: 32px 36px; border-radius: 14px; }
   .cover-business-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal-100); margin-bottom: 6px; }
@@ -31,7 +31,7 @@ const REPORT_CSS = `
   .cover-bottom strong { color: var(--ink); font-weight: 600; }
 
   .section-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal); margin-bottom: 6px; }
-  .section-title { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .section-title { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.25; letter-spacing: -0.5px; margin-bottom: 8px; padding-bottom: 4px; }
   .section-sub { font-size: 14px; color: var(--ink-light); margin-bottom: 24px; max-width: 6in; }
 
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
@@ -40,7 +40,7 @@ const REPORT_CSS = `
   .stat-card.featured .stat-num { color: white; }
   .stat-card.featured .stat-label { color: var(--teal-100); }
   .stat-card.featured .stat-source { color: var(--teal-100); opacity: 0.7; }
-  .stat-num { font-family: 'Syne', sans-serif; font-size: 44px; font-weight: 800; line-height: 1; color: var(--ink); margin-bottom: 8px; letter-spacing: -1.5px; }
+  .stat-num { font-family: 'Syne', sans-serif; font-size: 44px; font-weight: 800; line-height: 1.1; color: var(--ink); margin-bottom: 8px; letter-spacing: -1.5px; }
   .stat-label { font-size: 13px; color: var(--ink-light); line-height: 1.45; margin-bottom: 10px; }
   .stat-source { font-size: 10px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.5px; }
   .quote-block { background: var(--teal-50); border-left: 4px solid var(--teal); padding: 20px 24px; border-radius: 0 12px 12px 0; margin: 28px 0; font-size: 15px; line-height: 1.55; color: var(--ink); }
@@ -55,7 +55,7 @@ const REPORT_CSS = `
   .score-card.primary { background: var(--teal-darkest); border-color: var(--teal-darkest); }
   .score-card-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-muted); margin-bottom: 8px; }
   .score-card.primary .score-card-label { color: var(--teal-100); }
-  .score-card-num { font-family: 'Syne', sans-serif; font-size: 38px; font-weight: 800; line-height: 1; margin-bottom: 4px; letter-spacing: -1px; }
+  .score-card-num { font-family: 'Syne', sans-serif; font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; letter-spacing: -1px; }
   .score-card-num span { font-size: 16px; color: var(--ink-muted); font-weight: 400; }
   .score-card.primary .score-card-num { color: white; }
   .score-card.primary .score-card-num span { color: var(--teal-100); }
@@ -66,7 +66,7 @@ const REPORT_CSS = `
 
   .revenue-panel { background: var(--bg); border: 1px solid var(--amber); border-left-width: 4px; border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
   .revenue-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--amber-text); margin-bottom: 4px; }
-  .revenue-amount { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; color: var(--ink); line-height: 1.1; margin-bottom: 6px; letter-spacing: -0.5px; }
+  .revenue-amount { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; color: var(--ink); line-height: 1.2; margin-bottom: 6px; letter-spacing: -0.5px; }
   .revenue-amount span { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 6px; }
   .revenue-explanation { font-size: 13px; line-height: 1.55; color: var(--ink-light); margin-bottom: 8px; }
   .revenue-calc { font-size: 11px; color: var(--ink-muted); font-style: italic; padding-top: 8px; border-top: 1px dashed var(--border); margin-top: 8px; }
@@ -113,7 +113,7 @@ const REPORT_CSS = `
 
   .cta-page { display: flex; flex-direction: column; justify-content: space-between; min-height: 9.8in; }
   .cta-hero { background: var(--teal-darkest); color: white; border-radius: 16px; padding: 60px 48px; text-align: center; margin: 60px 0; }
-  .cta-hero-title { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; letter-spacing: -1px; margin-bottom: 18px; line-height: 1.1; }
+  .cta-hero-title { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; letter-spacing: -1px; margin-bottom: 18px; line-height: 1.22; padding-bottom: 4px; }
   .cta-hero-sub { font-size: 16px; color: var(--teal-100); line-height: 1.5; margin-bottom: 36px; max-width: 5in; margin-left: auto; margin-right: auto; }
   .cta-package-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; max-width: 6.5in; margin-left: auto; margin-right: auto; }
   .cta-pkg-desc { font-size: 12px; color: var(--ink-muted); line-height: 1.5; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
