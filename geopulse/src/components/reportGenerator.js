@@ -23,6 +23,12 @@ const REPORT_CSS = `
   .cover-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--teal); margin-bottom: 14px; }
   .cover-title { font-family: 'Syne', sans-serif; font-size: 56px; font-weight: 800; line-height: 1.18; letter-spacing: -1.5px; margin-bottom: 24px; padding-bottom: 8px; }
   .cover-sub { font-size: 18px; color: var(--ink-light); line-height: 1.5; max-width: 5.5in; margin-bottom: 0.5in; }
+  .cover-hook { background: white; border: 2px solid var(--teal); border-radius: 14px; padding: 24px 32px; margin-bottom: 16px; position: relative; }
+  .cover-hook-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal); margin-bottom: 8px; }
+  .cover-hook-stat { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: var(--ink); line-height: 1.2; letter-spacing: -0.8px; padding-bottom: 4px; margin-bottom: 6px; }
+  .cover-hook-stat .accent { color: var(--teal); }
+  .cover-hook-stat .alert { color: var(--red); }
+  .cover-hook-sub { font-size: 13px; color: var(--ink-light); line-height: 1.5; }
   .cover-business-card { background: var(--teal-darkest); color: white; padding: 32px 36px; border-radius: 14px; }
   .cover-business-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--teal-100); margin-bottom: 6px; }
   .cover-business-name { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.5px; }
@@ -282,6 +288,27 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
   const visibility = audit.visibility || 0;
   const sentiment = audit.sentiment;
 
+  // Build the cover hook based on the most impactful data point
+  const mentionsCount = audit._meta?.mentionsCount || 0;
+  const totalQueries = audit._meta?.totalQueries || 3;
+  const missedCount = totalQueries - mentionsCount;
+  const topCompetitor = (audit.competitors && audit.competitors[0]) || null;
+
+  let hookStat, hookSub;
+  if (visibility === 0) {
+    hookStat = `AI never mentioned <span class="alert">${escapeHtml(bizInfo.name)}</span> in <span class="accent">0 of ${totalQueries}</span> top searches.`;
+    hookSub = `When ${escapeHtml(bizInfo.city)} residents ask AI for the best ${escapeHtml(bizInfo.industry).toLowerCase()}, you're invisible. Here's what they hear instead.`;
+  } else if (visibility < 50) {
+    hookStat = `AI mentioned competitors <span class="alert">${totalQueries - mentionsCount}× more often</span> than ${escapeHtml(bizInfo.name)}.`;
+    hookSub = `You only appeared in ${mentionsCount} of ${totalQueries} top searches. ${topCompetitor ? escapeHtml(topCompetitor.name) + ' is winning the AI recommendation war in ' + escapeHtml(bizInfo.city) + '.' : 'Your competitors are winning the AI search game.'}`;
+  } else if (visibility < 80) {
+    hookStat = `You're <span class="alert">missing ${missedCount} of every ${totalQueries}</span> AI-generated recommendations in ${escapeHtml(bizInfo.city)}.`;
+    hookSub = `${topCompetitor ? escapeHtml(topCompetitor.name) + ' and others are taking the bookings you should be getting from AI search.' : 'Competitors are taking the bookings you should be getting.'}`;
+  } else {
+    hookStat = `<span class="accent">${visibility}%</span> AI visibility — strong, but not #1 in ${escapeHtml(bizInfo.city)}.`;
+    hookSub = `${topCompetitor ? 'You\'re trading top spots with ' + escapeHtml(topCompetitor.name) + '. Here\'s how to win outright.' : 'Here\'s exactly what\'s standing between you and the #1 AI recommendation.'}`;
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -305,6 +332,12 @@ export function generatePDFReport(audit, bizInfo, contact = {}) {
     <h1 class="cover-title">How AI sees ${escapeHtml(bizInfo.name)} in ${escapeHtml(bizInfo.city)}.</h1>
     <p class="cover-sub">A custom report on how ChatGPT, Claude, and other AI search engines describe your business — and what your competitors are getting that you aren't.</p>
   </div>
+  <div class="cover-hook">
+    <div class="cover-hook-label">The headline</div>
+    <div class="cover-hook-stat">${hookStat}</div>
+    <div class="cover-hook-sub">${hookSub}</div>
+  </div>
+
   <div class="cover-business-card">
     <div class="cover-business-label">Prepared for</div>
     <div class="cover-business-name">${escapeHtml(bizInfo.name)}</div>
